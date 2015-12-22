@@ -1,10 +1,10 @@
 /*
  * Copyright 2015 floragunn UG (haftungsbeschränkt)
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 
 package com.floragunn.searchguard.authentication.backend.ldap;
@@ -35,6 +35,10 @@ import com.floragunn.searchguard.authorization.ldap.LDAPAuthorizator;
 import com.floragunn.searchguard.util.ConfigConstants;
 import com.floragunn.searchguard.util.SecurityUtil;
 
+import org.apache.commons.IOUtils;
+import org.json.json;
+import org.apache.http.GetMethod;
+
 public class LDAPAuthenticationBackend implements NonCachingAuthenticationBackend {
 
     protected final ESLogger log = Loggers.getLogger(this.getClass());
@@ -46,7 +50,38 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
     }
 
     @Override
+    private User apiAuthenticate(final AuthCredentials authCreds, String apiUrl) throws AuthException {
+        log.debug("LDAP auth using API");
+        String user = authCreds.getUsername();
+        String passwd = authCreds.getPassword();
+        apiUrl += "?" + "name=" + user + "&passwd=" + passwd;
+        GetMethod get = new GetMethod(apiUrl);
+        try {
+            client.executeMethod(get);
+            InputStream ret = get.getResponseBodyAsStream();
+            get.releaseConnection();
+            String jsonStr = IOUtils.toString(ret, "utf8");
+            log.debug("LDAP API return: " + jsonStr);
+            JSONObject obj = new JSONObject(jsonStr);
+            if (!obj.getString("cn"))
+                throw new AuthException("No user " + user + " found");
+        } catch (final Exception e) {
+            log.error(e.toString(), e);
+            throw new AuthException(e);
+        }
+        String cn = obj.getString("cn");
+        String dn = obj.getString("cn");
+        Entry entry = new DefaultEntry();
+        entry.setDn(dn);
+        entry.add("cn", cn);
+        return new LdapUser(cn, entry);
+    }
+
+    @Override
     public User authenticate(final AuthCredentials authCreds) throws AuthException {
+        final String apiUrl = settings.getConfig(Constants.SEARCHGUARD_AUTHENTICATION_LDAP_API, null);
+        if (apiUrl)
+            return apiAuthenticate(authCreds, apiUrl);
 
         LdapConnection ldapConnection = null;
         final String user = authCreds.getUsername();

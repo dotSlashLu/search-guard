@@ -1,10 +1,10 @@
 /*
  * Copyright 2015 floragunn UG (haftungsbeschränkt)
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 
 package com.floragunn.searchguard.util;
@@ -37,6 +37,7 @@ public final class ConfigConstants {
     public static final String SEARCHGUARD_AUTHENTICATION_AUTHORIZER_CACHE_ENABLE = "searchguard.authentication.authorizer.cache.enable";
     public static final String SEARCHGUARD_AUTHENTICATION_HTTP_AUTHENTICATOR = "searchguard.authentication.http_authenticator.impl";
     public static final String SEARCHGUARD_AUTHENTICATION_HTTPS_CLIENTCERT_ATTRIBUTENAME = "searchguard.authentication.https.clientcert.attributename";
+    public static final String SEARCHGUARD_AUTHENTICATION_LDAP_API = "searchguard.authentication.ldap.api";
     public static final String SEARCHGUARD_AUTHENTICATION_LDAP_BIND_DN = "searchguard.authentication.ldap.bind_dn";
     public static final String SEARCHGUARD_AUTHENTICATION_LDAP_HOST = "searchguard.authentication.ldap.host";
     public static final String SEARCHGUARD_AUTHENTICATION_LDAP_LDAPS_SSL_ENABLED = "searchguard.authentication.ldap.ldaps.ssl.enabled";
