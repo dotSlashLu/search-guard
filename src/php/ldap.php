@@ -12,14 +12,15 @@ class CI_ldap {
 
     public function bind($username,$password){
         $username=str_replace(LDAP_EMAIL,'',$username);
-        if($this->connect){
+        if($this->connect) {
             ldap_set_option($this->connect, LDAP_OPT_PROTOCOL_VERSION, 3);
             ldap_set_option($this->connect, LDAP_OPT_REFERRALS, 0 );
             $username.=LDAP_EMAIL;
             $bind = @ldap_bind($this->connect, $username, $password);
             ldap_close($this->connect);
             return $bind? 1: -2;
-        }else{
+        }
+        else {
             return -1;
         }
     }
@@ -46,7 +47,9 @@ class CI_ldap {
         ldap_set_option($this->connect, LDAP_OPT_REFERRALS, 0);
         $bind = @ldap_bind($this->connect, $username, $password);
         if (!$bind) {
-            echo 0;
+            echo json_encode(array(
+                "status" => -1
+            ));
             return ;
         }
         if ($bind) {
@@ -58,15 +61,25 @@ class CI_ldap {
             //echo "Error message: ".ldap_error($this->connect)."<br>";
             $entry = ldap_get_entries($this->connect, $result);//获得查询结果
             if ($entry["count"] > 0) {
-                for ($i = 0; $i < $entry[0]["count"]; $i++)
-                    unset($entry[0][$i]);
-                unset($entry[0]["count"]);
+                $entry = $entry[0];
+                foreach ($entry as $k => $v) {
+                    if (is_numeric($k))
+                        unset($entry[$k]);
+
+                    elseif(is_array($v))
+                        $entry[$k] = $v[0];
+                }
+                unset($entry["count"]);
             }
-            echo json_encode($entry[0]);
+            $entry["status"] = 0;
+            echo json_encode($entry);
             //var_dump($entry);//输出查询结果
             ldap_close($this->connect);
         } else {
             //die("Can't bind to LDAP server.");
+            echo json_encode(array(
+                "status" => -1
+            ));
             return false;
         }
     }
