@@ -19,6 +19,7 @@ package com.floragunn.searchguard.authentication.backend.ldap;
 
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Entry;
+import org.apache.directory.api.ldap.model.entry.DefaultEntry;
 import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.ldap.client.api.LdapConnection;
 import org.elasticsearch.common.inject.Inject;
@@ -35,9 +36,15 @@ import com.floragunn.searchguard.authorization.ldap.LDAPAuthorizator;
 import com.floragunn.searchguard.util.ConfigConstants;
 import com.floragunn.searchguard.util.SecurityUtil;
 
-import org.apache.commons.IOUtils;
-import org.json.json;
-import org.apache.http.GetMethod;
+import org.apache.commons.io.IOUtils;
+import org.json.JSONObject;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.util.EntityUtils;
 
 public class LDAPAuthenticationBackend implements NonCachingAuthenticationBackend {
 
@@ -49,39 +56,45 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
         this.settings = settings;
     }
 
-    @Override
     private User apiAuthenticate(final AuthCredentials authCreds, String apiUrl) throws AuthException {
         log.debug("LDAP auth using API");
+        Entry entry = new DefaultEntry();
+        String cn, dn;
         String user = authCreds.getUsername();
-        String passwd = authCreds.getPassword();
+        String passwd = String.valueOf(authCreds.getPassword());
+        authCreds.clear();
         apiUrl += "?" + "name=" + user + "&passwd=" + passwd;
-        GetMethod get = new GetMethod(apiUrl);
+        CloseableHttpClient httpclient = HttpClients.createDefault();
         try {
-            client.executeMethod(get);
-            InputStream ret = get.getResponseBodyAsStream();
-            get.releaseConnection();
-            String jsonStr = IOUtils.toString(ret, "utf8");
+            HttpGet httpGet = new HttpGet(apiUrl);
+            CloseableHttpResponse response1 = httpclient.execute(httpGet);
+            HttpEntity responseEntity = response1.getEntity();
+            if(responseEntity == null)
+                throw new AuthException("LDAP API error");
+            String jsonStr = EntityUtils.toString(responseEntity);
+            EntityUtils.consume(responseEntity);
             log.debug("LDAP API return: " + jsonStr);
             JSONObject obj = new JSONObject(jsonStr);
-            if (!obj.getString("cn"))
+            if (obj.getInt("status") != 0 || obj.getString("cn") == null)
                 throw new AuthException("No user " + user + " found");
-        } catch (final Exception e) {
+            cn = obj.getString("cn");
+            dn = obj.getString("dn");
+            entry.setDn(dn);
+            entry.add("cn", cn);
+        }
+        catch (final Exception e) {
             log.error(e.toString(), e);
             throw new AuthException(e);
         }
-        String cn = obj.getString("cn");
-        String dn = obj.getString("cn");
-        Entry entry = new DefaultEntry();
-        entry.setDn(dn);
-        entry.add("cn", cn);
         return new LdapUser(cn, entry);
     }
 
     @Override
     public User authenticate(final AuthCredentials authCreds) throws AuthException {
-        final String apiUrl = settings.getConfig(Constants.SEARCHGUARD_AUTHENTICATION_LDAP_API, null);
-        if (apiUrl)
-            return apiAuthenticate(authCreds, apiUrl);
+        final String apiUrl = settings.get(ConfigConstants.SEARCHGUARD_AUTHENTICATION_LDAP_API, null);
+
+        if (apiUrl != null)
+            return this.apiAuthenticate(authCreds, apiUrl);
 
         LdapConnection ldapConnection = null;
         final String user = authCreds.getUsername();

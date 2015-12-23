@@ -115,6 +115,13 @@
         </dependency>
 
         <dependency>
+     <groupId>commons-logging</groupId>
+     <artifactId>commons-logging</artifactId>
+     <version>1.2</version>
+        </dependency>
+
+
+        <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.4</version>
@@ -141,17 +148,29 @@
         -->
 
         <dependency>
-            <groupId>org.json.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20151123</version>
+            <groupId>commons-httpclient</groupId>
+            <artifactId>commons-httpclient</artifactId>
+            <version>3.1</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.5</version>
+            <version>4.5.1</version>
         </dependency>
 
+        <dependency>
+     <groupId>org.apache.httpcomponents</groupId>
+     <artifactId>httpcore</artifactId>
+     <version>4.4.4</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20151123</version>
+        </dependency>
 
         <!-- Only test scoped dependencies hereafter -->
 
@@ -221,6 +240,12 @@
             <artifactId>waffle-tests</artifactId>
             <version>1.7.3</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>fluent-hc</artifactId>
+            <version>4.5.1</version>
         </dependency>
     </dependencies>
 
