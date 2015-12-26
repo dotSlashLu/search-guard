@@ -24,7 +24,6 @@ class CI_ldap {
             return -1;
         }
     }
-    // 析构函数
     function __destruct(){
         if($this->connect){
             //ldap_close($this->connect);
@@ -33,7 +32,6 @@ class CI_ldap {
 
 
     /**
-     * 连接AD域获取用户的姓名和邮箱
      * @param $username
      * @param $password
      * @return array|bool = cn,displayname,mail
@@ -53,27 +51,29 @@ class CI_ldap {
             return ;
         }
         if ($bind) {
-            $base_dn = "DC=meizu,DC=com";//定义要进行查询的目录主键
-            $filter_col = "cn";//定义用于查询的列
-            $filter_val = $filterName;//定义用于匹配的值
+            $base_dn = "DC=meizu,DC=com"; // query key
+            $filter_col = "cn"; // query column
+            $filter_val = $filterName;// query value
             $filter = array('mail', 'displayName', 'cn');
-            $result = ldap_search($this->connect, $base_dn, "($filter_col=$filter_val)", $filter);//执行查询
+            // exec query
+            $result = ldap_search($this->connect, $base_dn, "($filter_col=$filter_val)", $filter);
             //echo "Error message: ".ldap_error($this->connect)."<br>";
-            $entry = ldap_get_entries($this->connect, $result);//获得查询结果
+            $entry = ldap_get_entries($this->connect, $result);
             if ($entry["count"] > 0) {
                 $entry = $entry[0];
                 foreach ($entry as $k => $v) {
+                    if (isset($entry[$k]["count"]))
+                        unset($entry[$k]["count"]);
+
                     if (is_numeric($k))
                         unset($entry[$k]);
-
-                    elseif(is_array($v))
+                    elseif(is_array($v) && $k != "memberof")
                         $entry[$k] = $v[0];
                 }
                 unset($entry["count"]);
             }
             $entry["status"] = 0;
             echo json_encode($entry);
-            //var_dump($entry);//输出查询结果
             ldap_close($this->connect);
         } else {
             //die("Can't bind to LDAP server.");

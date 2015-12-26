@@ -46,6 +46,10 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.util.EntityUtils;
 
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
+
 public class LDAPAuthenticationBackend implements NonCachingAuthenticationBackend {
 
     protected final ESLogger log = Loggers.getLogger(this.getClass());
@@ -58,13 +62,16 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
 
     private User apiAuthenticate(final AuthCredentials authCreds, String apiUrl) throws AuthException {
         log.debug("LDAP auth using API");
-        Entry entry = new DefaultEntry();
+
         String cn, dn;
         String user = authCreds.getUsername();
         String passwd = String.valueOf(authCreds.getPassword());
         authCreds.clear();
         apiUrl += "?" + "name=" + user + "&passwd=" + passwd;
         CloseableHttpClient httpclient = HttpClients.createDefault();
+        ArrayList<String> memberOf = new ArrayList<String>();
+        ArrayList<String> groups = new ArrayList<String>();
+
         try {
             HttpGet httpGet = new HttpGet(apiUrl);
             CloseableHttpResponse response1 = httpclient.execute(httpGet);
@@ -79,14 +86,20 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
                 throw new AuthException("No user " + user + " found");
             cn = obj.getString("cn");
             dn = obj.getString("dn");
-            entry.setDn(dn);
-            entry.add("cn", cn);
+            String [] groupArr = dn.split(",OU=");
+            // remove CN at head and DC at tail
+            for (int i = 1; i < groupArr.length - 1; i++)
+                groups.add(groupArr[i]);
+            // JSONArray memberof = obj.getJSONArray("memberof");
+            // if (memberof != null)
+            //     for (int i = 0; i < memberof.length(); i++)
+            //         memberOf.add(memberof.get(i).toString());
         }
         catch (final Exception e) {
             log.error(e.toString(), e);
             throw new AuthException(e);
         }
-        return new LdapUser(cn, entry);
+        return new User(cn, groups);
     }
 
     @Override
