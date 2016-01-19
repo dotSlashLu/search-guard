@@ -48,6 +48,8 @@ import org.apache.http.util.EntityUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.net.URLEncoder;
+import java.io.UnsupportedEncodingException;
 import org.json.JSONArray;
 
 public class LDAPAuthenticationBackend implements NonCachingAuthenticationBackend {
@@ -60,14 +62,17 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
         this.settings = settings;
     }
 
-    private User apiAuthenticate(final AuthCredentials authCreds, String apiUrl) throws AuthException {
+    private User apiAuthenticate(final AuthCredentials authCreds, String apiUrl) throws AuthException, UnsupportedEncodingException {
         log.debug("LDAP auth using API");
 
         String cn, dn;
-        String user = authCreds.getUsername();
-        String passwd = String.valueOf(authCreds.getPassword());
+        String user = URLEncoder.encode(authCreds.getUsername(), "ISO-8859-1");
+        String passwd = URLEncoder.encode(
+            String.valueOf(authCreds.getPassword()),
+            "ISO-8859-1"
+        );
         authCreds.clear();
-        apiUrl += "?" + "name=" + user + "&passwd=" + passwd;
+        apiUrl += "?" + "name=" + user  + "&passwd=" + passwd;
         CloseableHttpClient httpclient = HttpClients.createDefault();
         ArrayList<String> memberOf = new ArrayList<String>();
         ArrayList<String> groups = new ArrayList<String>();
@@ -106,8 +111,13 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
     public User authenticate(final AuthCredentials authCreds) throws AuthException {
         final String apiUrl = settings.get(ConfigConstants.SEARCHGUARD_AUTHENTICATION_LDAP_API, null);
 
-        if (apiUrl != null)
-            return this.apiAuthenticate(authCreds, apiUrl);
+        try {
+            if (apiUrl != null)
+                return this.apiAuthenticate(authCreds, apiUrl);
+        } catch (Exception e) {
+            log.error(e.toString(), e);
+            throw new AuthException(e);
+        }
 
         LdapConnection ldapConnection = null;
         final String user = authCreds.getUsername();
