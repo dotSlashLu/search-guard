@@ -85,10 +85,10 @@ class CI_ldap {
     }
 }
 
-if (isset($_GET["name"]) && isset($_GET["passwd"])) {
+if (isset($_POST["name"]) && isset($_POST["passwd"])) {
     $LDAP = new CI_ldap();
-    $username = $_GET["name"];
-    $password = $_GET["passwd"];
+    $username = $_POST["name"];
+    $password = $_POST["passwd"];
     $LDAP->getUserInfo($username, $password);
     unset($LDAP);
 }

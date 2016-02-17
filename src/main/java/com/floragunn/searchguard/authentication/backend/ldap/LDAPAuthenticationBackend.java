@@ -40,15 +40,18 @@ import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.NameValuePair;
+import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.apache.http.protocol.HTTP;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.net.URLEncoder;
 import java.io.UnsupportedEncodingException;
 import org.json.JSONArray;
 
@@ -66,25 +69,25 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
         log.debug("LDAP auth using API");
 
         String cn, dn;
-        String user = URLEncoder.encode(authCreds.getUsername(), "ISO-8859-1");
-        String passwd = URLEncoder.encode(
-            String.valueOf(authCreds.getPassword()),
-            "ISO-8859-1"
-        );
+        String user = authCreds.getUsername();
+        String passwd = String.valueOf(authCreds.getPassword());
         authCreds.clear();
-        apiUrl += "?" + "name=" + user  + "&passwd=" + passwd;
         CloseableHttpClient httpclient = HttpClients.createDefault();
+
         ArrayList<String> memberOf = new ArrayList<String>();
         ArrayList<String> groups = new ArrayList<String>();
-
         try {
-            HttpGet httpGet = new HttpGet(apiUrl);
-            CloseableHttpResponse response1 = httpclient.execute(httpGet);
-            HttpEntity responseEntity = response1.getEntity();
-            if(responseEntity == null)
+            HttpPost httpPost = new HttpPost(apiUrl);
+            List <NameValuePair> data = new ArrayList <NameValuePair>();
+            data.add(new BasicNameValuePair("name", user));
+            data.add(new BasicNameValuePair("passwd", passwd));
+            httpPost.setEntity(new UrlEncodedFormEntity(data, HTTP.UTF_8));
+            HttpResponse response = httpclient.execute(httpPost);
+            HttpEntity entity = response.getEntity();
+            if(entity == null)
                 throw new AuthException("LDAP API error");
-            String jsonStr = EntityUtils.toString(responseEntity);
-            EntityUtils.consume(responseEntity);
+            String jsonStr = EntityUtils.toString(entity);
+            EntityUtils.consume(entity);
             log.debug("LDAP API return: " + jsonStr);
             JSONObject obj = new JSONObject(jsonStr);
             if (obj.getInt("status") != 0 || obj.getString("cn") == null)
@@ -95,10 +98,13 @@ public class LDAPAuthenticationBackend implements NonCachingAuthenticationBacken
             // remove CN at head and DC at tail
             for (int i = 1; i < groupArr.length - 1; i++)
                 groups.add(groupArr[i]);
-            // JSONArray memberof = obj.getJSONArray("memberof");
-            // if (memberof != null)
-            //     for (int i = 0; i < memberof.length(); i++)
-            //         memberOf.add(memberof.get(i).toString());
+            /*
+            JSONArray memberof = obj.getJSONArray("memberof");
+            if (memberof != null)
+                for (int i = 0; i < memberof.length(); i++)
+                    memberOf.add(memberof.get(i).toString());
+            */
+
         }
         catch (final Exception e) {
             log.error(e.toString(), e);
