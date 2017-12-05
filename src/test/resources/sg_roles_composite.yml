@@ -1,0 +1,41 @@
+#sg_public, sg_role_host1, sg_role_klingons1, sg_role_klingons2, sg_role_starfleet, sg_role_starfleet_library, sg_user1
+
+sg_role_klingons1:
+  cluster:
+    - indices:data/read/msearch
+  indices:
+    klingonempire:
+      ships:  
+        - READ
+
+sg_role_klingons2:
+  indices:
+    klingonempire:
+      praxis:  
+        - READ
+
+sg_role_starfleet:
+  indices:
+    sf:
+       ships:  
+         - READ
+       public:  
+         - 'indices:*'
+       students:  
+         - READ
+       alumni:  
+         - READ
+       'admin*':  
+         - READ
+    'pub*':
+       '*':  
+         - READ  
+  cluster:
+    - 'cluster:monitor*'
+    - indices:data/read/scroll
+
+sg_user1:
+  indices:
+    'alias1':
+      '*':
+        - READ

@@ -1,357 +1,120 @@
-# Search Guard Security Plugin for ES 1.x
-Elasticsearch security for free.
+# Search Guard - Security for Elasticsearch
 
-##Search Guard for Elasticsearch 2 is coming in Feb. 2016
+![Logo](https://raw.githubusercontent.com/floragunncom/sg-assets/master/logo/sg_dlic_small.png) 
 
-Search Guard is a free and open source plugin for Elasticsearch which provides security features. Currently only Elasticsearch 1.5, 1.6 and 1.7 is supported, Search Guard for Elasticsearch 2 is coming in Feb. 2016.
+Search Guard(®) is an Elasticsearch plugin that offers encryption, authentication, and authorization. It builds on Search Guard SSL and provides pluggable authentication and authorization modules in addition. Search Guard is fully compatible with Kibana, Logstash and Beats.
 
-If you need "only" SSL for Elasticsearch 2 have a look here: https://github.com/floragunncom/search-guard-ssl
+As an alternative to other security solutions for Elasticsearch, Search Guard offers the following main features:
 
-![Logo](https://raw.githubusercontent.com/floragunncom/sg-assets/master/logo/sg_logo_small.jpg) 
-
-
-[![Build Status](https://travis-ci.org/floragunncom/search-guard.svg?branch=master)](https://travis-ci.org/floragunncom/search-guard) [![Coverage Status](https://coveralls.io/repos/floragunncom/search-guard/badge.svg?branch=master)](https://coveralls.io/r/floragunncom/search-guard?branch=master)
-
-##Other Versions
-* ES 1.5 https://github.com/floragunncom/search-guard/tree/es1.5
-* ES 1.6 https://github.com/floragunncom/search-guard/tree/es1.6
-* ES 1.7 https://github.com/floragunncom/search-guard/tree/es1.7
-* ES 1.x https://github.com/floragunncom/search-guard/tree/master
-* ES 2.0 https://github.com/floragunncom/search-guard/tree/master2.0
-
-##Support
-* Community support available via [google groups](https://groups.google.com/forum/#!forum/search-guard)
-* Commercial support through [floragunn UG](http://floragunn.com) available Februar 2016
-
-##Features
-* Flexible REST layer access control (User/Role based; on aliases, indices and types)
-* Flexible transport layer access control (User/Role based; on aliases, indices and types)
-* Document level security (DLS): Retrieve only documents matching criterias
-* Field level security (FLS): Filter out fields/sourceparts from a search response
-* HTTP authentication (Basic, Proxy header, SPNEGO/Kerberos, Mutual SSL/CLIENT-CERT)
-* HTTP session support through cookies
-* Flexible authentication backends (LDAP(s)/Active Directory, File based, Proxy header, Native Windows through WAFFLE) 
-* Flexible authorization backends (LDAP(s)/Active Directory, File based, Native Windows through WAFFLE) 
-* Node-to-node encryption through SSL/TLS (Transport layer)
-* Secure REST layer through HTTPS (SSL/TLS)
-* X-Forwarded-For (XFF) support
+* TLS on transport- and REST-layer
+* Fine-grained role- and index-based access control
+* HTTP Basic Authentication
+* LDAP / Active Directory
+* Kerberos / SPNEGO
+* JSON web token
+* Document- and Field-level security
 * Audit logging
-* Anonymous login/unauthenticated access
-* Works with Kibana 4 and logstash
+* Kibana multi-tenancy
+* REST management API
+* Proxy support
+* User impersonation
 
-##Limitations
-* When using DLS or FLS you can still search in all documents/fields but not all documents/fields are returned
-* Transport layer access control only with simple username/password login
-* No automatic multi index filters (see below)
-* Currently monitoring of the cluster needs no authentication and is allowed always (this may change in the future)
+Search Guard supports **OpenSSL** for maximum performance and security. The complete code is **Open Source**.
 
-##How it works
-Basically Search Guard consists of an authentication, authorization, SSL/TLS, XFF, HTTP session and audit log module and access control. All of them without the exception of access control are more or less self-explanatory. But access control, the heart of Search Guard, needs some more attention.
+## Quick Start
 
-Search Guard has the concept of routing a request through a chain of filters which can modify or block the request/response. There are currently 3 types of filters:
+* Install Elasticsearch
 
-* **actionrequest/restrequest filter**: Checks if the user is allowed to perform actions (like read, write, admin actions …). Works generally, not only for search requests.
-* **dls filter**: filters out documents from the search response
-* **fls filter**: filter out fields from the documents of a search response
+* Install the Search Guard plugin for your [Elasticsearch version](https://github.com/floragunncom/search-guard/wiki), e.g.:
 
-##Pre-Installation
-###Check Release Integrity
-
-You **must** verify the integrity of the downloaded files. We provide PGP signatures for every release file. This signature should be matched against the KEYS file. We also provide MD5 and SHA-1 checksums for every release file. After you download the file, you should calculate a checksum for your download, and make sure it is the same as ours. [Here](http://www.openoffice.org/download/checksums.html) and [here](https://www.apache.org/info/verification.html) are some tips how to verify the pgp signatures.
-
-###Setup ACL rules
-
-It's recommended to setup the access control rules (ACL rules) **before** installing the plugin to simplify the installation process.
-If you install the plugin first you have to do extra effort cause then your're firstly locked-out of elasticsearch.
-
-Why not install a ACL rules file which grants _all access_ for a user with role _admin_?
-
-```javascript
-curl -XPUT 'http://localhost:9200/searchguard/ac/ac' -d '{
-    "acl": [
-    {    
-        "__Comment__": "By default no filters are executed and no filters a by-passed. In such a case an exception is thrown and access will be denied.",
-        "filters_bypass": [],
-        "filters_execute": []
-     },
-     {
-           "__Comment__": "For role *admin* all filters are bypassed (so none will be executed). This means unrestricted access.",
-           "roles": [
-               "admin"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-     }
-     ]
-}'
 ```
-     
-##Installation
-Install it like any other Elasticsearch plugin
-
-``bin/plugin -i com.floragunn/search-guard/0.5``
-
-Prerequisites:
-
-* Java 7 or 8 (recommended)
-* Elasticsearch 1.5.x
-
-Build it yourself:
-* Install maven 3.1+
-* ``git clone https://github.com/floragunncom/search-guard.git`
-* ``cd search-guard``
-* execute ``mvn package -DskipTests`` 
-
-
-##Configuration
-
-###Logging
-Configured in elasticsearch's logging.yml. Nothing special. To enable debug just add
-
-``logger.com.floragunn: DEBUG``
-
-
-###Keys
-Two kind of keys are used by Search Guard:
-* Search Guard node key (searchguard_node.key)
- * This is a key which generated and saved to disk by the plugin if a node starts up (and key is not already present)
- * Its used to secure node communication even if no SSL/TLS is configured
- * Every node in the cluster has to use the same key file (searchguard_node.key)
- * It's recommended to let one node generate a file and copy this (securely) to every node in the cluster  
-* Optionally SSL keys (certificates)
- * If you want to use SSL/TLS see [example-pki-scripts](example-pki-scripts) how to generate the certificates. It's strongly recommended to use a root certificate.</a>
- * See https://www.digitalocean.com/community/tutorials/java-keytool-essentials-working-with-java-keystores
- * or https://tomcat.apache.org/tomcat-8.0-doc/ssl-howto.html
-
-###ACL rules (stored in Elasticsearch itself)
-The security rules for each module are stored in an special index ``searchguard`` and with a type and id of ``ac``.
-
-See below (or look at chapter **Pre-Installation**) for more details.
-
-###AuthN & AuthZ in elasticsearch.yml
-See [searchguard_config_template.yml](searchguard_config_template.yml). Just copy the content over to elasticsearch.yml and modify the settings so fit your needs. A very basic example you can find [here](searchguard_config_example_1.yml)
-
-####Within elasticsearch.yml you configure
-
-* Global options for searchguard
-* HTTP/REST SSL/TLS
-* Transport SSL/TLS
-* HTTP authentication method
- * Basic, SPNEGO, Client-Cert, Proxy header, WAFFLE (NTLM), ...
-* Authentication backend
- * LDAP, File based, Always authenticate
-* Authorization backend
- * LDAP, WAFFLE (AD), File based
-* Security Filters (see next section)
-
-####Security Filters
-All the configuration up to know makes only sense if we can limit the usage of Elasticsearch for the authenticated user.
-There are four types of security filters (by now) which also can be used together.
-
-* **restactionfilter**: Limit Elasticsearch actions by type of rest actions which are allowed (or forbidden)
-* **actionrequestfilter**: Limit Elasticsearch actions by type request actions which are allowed (or forbidden)
-* **dlsfilter**: Only return documents which match defined criterias
-* **flsfilter**: Filter document source and exclude (or include) fields
-
-You have to configure at least on filter.
-
-###On which nodes the plugin needs to be installed
-If you use either transport layer SSL or DLS or FLS you have to install it on every node. Otherwise install it on every client node which is exposed to be the entry point into the cluster and on every node which exposes the HTTP REST API. Please note that the ``searchguard.config_index_name`` must be the same for all nodes in within a cluster.
-
-###Update and Upgrade
-TBD
-
-##Auditlog
-Auditlog is stored in Elasticsearch within the _searchguard_ index (with type _audit_)<br>
-``curl -XGET 'http://localhost:9200/searchguard/audit/_search?pretty=true'``
-
-##Rules evaluation 
-Now lets define for which user on which index which filter have to be applied.
-```javascript
-{
-    "acl": [
-    {    
-        "__Comment__": "By default no filters are executed and no filters a by-passed. In such a case a exception is throws an access will be denied.",
-        "filters_bypass": [],
-        "filters_execute": []
-     },
-       {
-           "__Comment__": "For admin role all filters are bypassed (so none will be executed) for all indices. This means unrestricted access at all for this role.",
-           "roles": [
-               "admin"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-       },
-       {
-           "__Comment__": "For every authenticated user who access the index 'public' for this access all non dls and all non fls filters are executed.",
-           "indices": [
-               "public"
-           ],
-           "filters_bypass": ["dlsfilter.*","dlsfilter.*"],
-           "filters_execute": ["*"]
-       },
-       {
-       "__Comment__": "For marketing role all filters are bypassed (so none will be executed) for index 'marketing'. This means unrestricted access to this index for this role.",
-        "roles": ["marketing"],
-        "indices": [
-               "marketing"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-       },
-       {
-        "__Comment__": "For finance role all filters are bypassed (so none will be executed) for index 'finance'. This means unrestricted access to this index for this role.",
-        "roles": ["finance"],
-        "indices": [
-               "financ*"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-       },
-       {
-       "__Comment__": "For marketing role the filters 'flsfilter.filter_sensitive_finance' and 'actionrequestfilter.readonly' are executed (but no other filters) for index 'finance'",
-        "roles": ["marketing"],
-        "indices": [
-               "financ*"
-           ],
-           "filters_bypass": [],
-           "filters_execute": ["flsfilter.filter_sensitive_fina*","actionrequestfilter.readonly"]
-       },
-       {
-           "__Comment__": "For roles 'ceo' 'marketing' 'finance' all filters are bypassed (so none will be executed) for alias 'planning'. This means unrestricted access to this alias for this roles.",
-           "roles": [
-               "ce*o","marke*ing","*nanc*"
-           ],
-           "aliases": [
-               "planning"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-       },
-       {
-           "__Comment__": "For finance role the filters 'dlsfilter.filter_sensite_from_ceodata' and 'actionrequestfilter.readonly' are executed (but no other filters) for index 'ceodata'",
-           "roles": [
-               "finance"
-           ],
-           "indices": [
-               "ceodat*"
-           ],
-           "filters_bypass": [],
-           "filters_execute": ["dlsfilter.filter_sensitive_from_ceodata", "actionrequestfilter.readonly"]
-       },
-       {
-           "__Comment__": "For role 'ceo' all filters are bypassed (so none will be executed) for index 'ceodata'. This means unrestricted access to this index for this role.",
-           "roles": [
-               "ce*o"
-           ],
-           "indices": [
-               "ceodata"
-           ],
-           "filters_bypass": ["*"],
-           "filters_execute": []
-       }
-   ]
-} 
+<ES directory>/bin/elasticsearch-plugin install \
+  -b com.floragunn:search-guard-6:6.0.0-15-beta1
 ```
 
-For every rule that match all execute and bypass filters will be concatenated, and **bypass** is winning over **execute**.
-For example if an user which has the roles _marketing_ and _finance_ and want to access index _marketing_ the final result looks like 
+* ``cd`` into ``<ES directory>/plugins/search-guard-<version>/tools``
 
-```javascript
-filters_bypass= ["*"],
-filters_execute=["flsfilter.filter_sensitive_fina*","actionrequestfilter.readonly"]
+* Execute ``./install_demo_configuration.sh``, ``chmod`` the script first if necessary. This will generate all required TLS certificates and add the Search Guard configuration to your ``elasticsearch.yml`` file. 
+
+* Start Elasticsearch
+
+* Execute ``./sgadmin_demo.sh``, ``chmod`` the script if necessary first. This will execute ``sgadmin`` and populate the Search Guard configuration index with the files contained in the ``plugins/search-guard-<version>/sgconfig`` directory.
+
+* Test the installation by visiting ``https://localhost:9200``. When prompted, use admin/admin as username and password. This user has full access to the cluster.
+
+* Display information about the currently logged in user by visiting ``https://localhost:9200/_searchguard/authinfo``.
+
+* Deep dive into all Search Guard features by reading the [Search Guard documentation](http://floragunncom.github.io/search-guard-docs/)
+
+If you want to play around with different configuration settings, you can change the files in the ``sgconfig`` directory directly. After that, just execute ``./sgadmin_demo.sh`` again for the changes to take effect. 
+
+* sg\_config.yml: Configure authenticators and authorization backends
+* sg\_internal\_users.yml: user and hashed passwords (hash with hasher.sh)
+* sg\_roles\_mapping.yml: map backend roles, hosts and users to roles
+* sg\_action\_groups.yml: define permission groups
+* sg\_roles.yml: define the roles and the associated permissions
+
+Please refer to the official [Search Guard documentation](http://floragunncom.github.io/search-guard-docs/) for a complete guide.
+
+### Search Guard Bundle
+As an alternative, you can also download the [Search Guard Bundle](https://github.com/floragunncom/search-guard/wiki/Search-Guard-Bundle). This is an Elasticsearch installation, pre-installed and pre-configured with Search Guard. It contains all enterprise features and templates for all configuration files. Just download, unzip and run! 
+
+## Documentation
+
+The [Official Search Guard documentation](http://floragunncom.github.io/search-guard-docs/) is available on GitHub.
+
+## Commercial use
+
+Search Guard offers all basic security features for free. If you want to use our enterprise features for commercial projects, you need to obtain a license. We offer a [very flexible licensing model](https://floragunn.com/searchguard/searchguard-license-support/), based on productive clusters, not the number of nodes. Scale your cluster, not your cost! Non-productive systems like Development, Staging or QA are included in the license as well.
+
+## Enterprise modules trial
+
+You can test all enterprise modules for as long as you like, a trial license key is not required. Please refer to the chapter "Installing enterprise modules" from the [Official Search Guard documentation](https://github.com/floragunncom/search-guard-docs/blob/master/installation.md) for installation instructions.
+
+## Architecture
+
+![Architecture](https://github.com/floragunncom/sg-assets/raw/master/diagrams/SG_Architecture_Overview.png)
+
+
+## Config hot reloading
+
+The Search Guard configuration is stored in a dedicated index in Elasticsearch itself. Changes to the configuration are pushed to this index via the [sgadmin command line tool](https://github.com/floragunncom/search-guard-docs/blob/master/sgadmin.md). This will trigger a reload of the configuration on all nodes automatically. This has several advantages over configuration via elasticsearch.yml:
+
+* Configuration is stored in a central place
+* No configuration files on the nodes necessary
+* Configuration changes do not require a restart
+* Configuration changes take effect immediately
+
+## Support
+* Commercial support available through [floragunn GmbH](https://floragunn.com/searchguard/searchguard-license-support/)
+* Community support available via [google groups](https://groups.google.com/forum/#!forum/search-guard)
+* Follow us and get community support on twitter [@searchguard](https://twitter.com/searchguard)
+
+## License
+
 ```
-which then will be resolved to ``filters_bypass= ["*"]`` (execute **NO** filter at all).
-Because bypass is winning.
+This software is licensed under the Apache License, version 2 ("ALv2"), quoted below.
 
-
-If a user which has the _marketing_ role and want to access index _finance_ the final result looks like 
-
-```javascript
-filters_bypass=[],
-filters_execute=["flsfilter.filter_sensitive_fina*","actionrequestfilter.readonly"]
-```
-which then will be resolved to ``filters_execute=["flsfilter.filter_sensitive_fina*","actionrequestfilter.readonly"]`` (execute these two filters, no others).
-
-For an admin accessing index _public_ it looks like
-
-```javascript
-filters_bypass=["*","dls.*","fls.*"],
-filters_execute=["*"]
-```
-
-which then will be resolved to ``filters_bypass= ["*"]`` (execute **NO** filter at all).
-Because bypass is winning.
-
-If filters resolve to
-
-```javascript
-  filters_bypass= []
-  filters_execute= []
-```
-then an security exception will be thrown.
-
-
-
-For the sake of completeness a rule definition can look like:
-```javascript
-{
-        //who is the requestor
-        "hosts":[
-           "10.*.1.*","host-*.company.org"
-        ],
-        "users":[
-           "*"
-        ],
-        "roles":[
-           "*"
-        ],
-
-        //on what resources do the requestor operate
-        "indices":[
-           "public"
-        ],
-        "aliases":[
-           "..."
-        ],
-
-        //which filters have to be applied or can be bypassed for this 
-        //requestor on this resource
-        "filters_bypass": ["*"],
-        "filters_execute": []
-}
-```
-Everywhere a simple wildcard (*) can be used.
-
-To make the rule apply all present attributes (users, roles, hosts, indices, aliases) must match. An attribute which is missing or is empty does always match. An attribute only containing the wildcard sign (*) does also match always.
-
-### No automatic multi index filters
-If you access more than one index (e.g. search in multiple indices) only rules will match when they list all the indices (or "*”). So for a multi index search on the indices _marketing_ and _finance_ a rules have to look like: 
-
-```javascript
-{       
-    "roles": [...],
-    "indices": [
-         "finance","marketing"
-    ],
-    "filters_bypass": [...],
-    "filters_execute": [...]
-}
-```
-You can circumvent this by using aliases.
-
-###License
-Copyright 2015 floragunn UG (haftungsbeschränkt)
+Copyright 2015-2017 floragunn GmbH 
+https://floragunn.com
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-   ``http://www.apache.org/licenses/LICENSE-2.0``
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+```
+
+## Legal 
+
+Search Guard is an independent implementation of a security access layer for Elasticsearch. Search Guard is completely independent from Elasticsearch own security offerings. floragunn GmbH is not affiliated with Elasticsearch BV.
+
+Search Guard is a trademark of floragunn GmbH, registered in the U.S. and in other countries.
+
+Elasticsearch, Kibana and Logstash are trademarks of Elasticsearch BV, registered in the U.S. and in other countries. 

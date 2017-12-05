@@ -17,14 +17,15 @@
 
 package com.floragunn.searchguard.rest;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.*;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import java.io.IOException;
+import java.security.cert.X509Certificate;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -32,70 +33,73 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import com.floragunn.searchguard.SearchGuardPlugin;
-import com.floragunn.searchguard.authentication.User;
-import com.floragunn.searchguard.authentication.backend.AuthenticationBackend;
-import com.floragunn.searchguard.authentication.http.HTTPAuthenticator;
-import com.floragunn.searchguard.authorization.Authorizator;
-import com.floragunn.searchguard.service.SearchGuardService;
-import com.floragunn.searchguard.util.SecurityUtil;
+import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
+import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.user.User;
 
 public class SearchGuardInfoAction extends BaseRestHandler {
 
-    private final SearchGuardService service;
+    private final PrivilegesEvaluator evaluator;
+    private final ThreadContext threadContext;
 
-    @Inject
-    public SearchGuardInfoAction(final Settings settings, final RestController controller, final Client client,
-            final SearchGuardService service) {
-        super(settings, controller, client);
-        controller.registerHandler(GET, "/_searchguard", this);
-        this.service = service;
+    public SearchGuardInfoAction(final Settings settings, final RestController controller, final PrivilegesEvaluator evaluator, final ThreadPool threadPool) {
+        super(settings);
+        this.threadContext = threadPool.getThreadContext();
+        this.evaluator = evaluator;
+        controller.registerHandler(GET, "/_searchguard/authinfo", this);
+        controller.registerHandler(POST, "/_searchguard/authinfo", this);
     }
 
     @Override
-    protected void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
-        final boolean isLoopback = ((InetSocketAddress) request.getRemoteAddress()).getAddress().isLoopbackAddress();
-        final InetAddress resolvedAddress = SecurityUtil.getProxyResolvedHostAddressFromRequest(request, settings);
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return new RestChannelConsumer() {
 
-        final Authorizator authorizator = service.getAuthorizator();
-        final AuthenticationBackend authenticationBackend = service.getAuthenticationBackend();
-        final HTTPAuthenticator httpAuthenticator = service.getHttpAuthenticator();
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                XContentBuilder builder = channel.newBuilder(); //NOSONAR
+                BytesRestResponse response = null;
+                
+                try {
 
-        BytesRestResponse response = null;
-        final XContentBuilder builder = channel.newBuilder();
+                    final X509Certificate[] certs = threadContext.getTransient(ConfigConstants.SG_SSL_PEER_CERTIFICATES);
+                    final User user = (User)threadContext.getTransient(ConfigConstants.SG_USER);
+                    final TransportAddress remoteAddress = (TransportAddress) threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS);
 
-        try {
+                    builder.startObject();
+                    builder.field("user", user);
+                    builder.field("user_name", user==null?null:user.getName());
+                    builder.field("user_requested_tenant", user==null?null:user.getRequestedTenant());
+                    builder.field("remote_address", remoteAddress);
+                    builder.field("backend_roles", user==null?null:user.getRoles());
+                    builder.field("custom attributes", user==null?null:user.getCustomAttributesMap());
+                    builder.field("sg_roles", evaluator.mapSgRoles(user, remoteAddress));
+                    builder.field("sg_tenants", evaluator.mapTenants(user, remoteAddress));
+                    builder.field("principal", (String)threadContext.getTransient(ConfigConstants.SG_SSL_PRINCIPAL));
+                    builder.field("peer_certificates", certs != null && certs.length > 0 ? certs.length + "" : "0");
+                    builder.endObject();
 
-            final User authenticatedUser = httpAuthenticator.authenticate(request, channel, authenticationBackend, authorizator);
+                    response = new BytesRestResponse(RestStatus.OK, builder);
+                } catch (final Exception e1) {
+                    builder = channel.newBuilder(); //NOSONAR
+                    builder.startObject();
+                    builder.field("error", e1.toString());
+                    builder.endObject();
+                    response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, builder);
+                } finally {
+                    if(builder != null) {
+                        builder.close();
+                    }
+                }
 
-            if (authenticatedUser == null) {
-                return;
+                channel.sendResponse(response);
             }
-
-            builder.startObject();
-
-            builder.field("searchguard.status", "running");
-            builder.field("searchguard.dls.supported", SearchGuardPlugin.DLS_SUPPORTED);
-            builder.field("searchguard.fls.supported", SearchGuardPlugin.DLS_SUPPORTED);
-            builder.field("searchguard.isloopback", isLoopback);
-            builder.field("searchguard.resolvedaddress", resolvedAddress);
-            builder.field("searchguard.authenticated_user", authenticatedUser.getName());
-
-            builder.field("searchguard.roles", authenticatedUser, authenticatedUser.getRoles());
-
-            builder.endObject();
-
-            response = new BytesRestResponse(RestStatus.OK, builder);
-        } catch (final Exception e1) {
-            builder.startObject();
-            builder.field("error", e1.toString());
-            builder.endObject();
-            response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, builder);
-        }
-
-        channel.sendResponse(response);
-
+        };
     }
-
+    
+    @Override
+    public String getName() {
+        return "Search Guard Info Action";
+    }
 }
